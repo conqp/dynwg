@@ -46,10 +46,11 @@ class Cache(dict):
             dump(self, file, indent=2)
 
 
-def is_wg(netdev):
+def is_wg_client(netdev):
     """Checks whether the netdev is a WireGuard interface."""
 
     try:
+        _ = netdev['WireGuardPeer']['Endpoint']     # Check if endpoint is set.
         return netdev['NetDev']['Kind'] == 'wireguard'
     except KeyError:
         return False
@@ -98,7 +99,7 @@ def main():
             netdev = ConfigParser()
             netdev.read(path)
 
-            if is_wg(netdev):
+            if is_wg_client(netdev):
                 print('Checking:', path, flush=True)
                 check(cache, netdev)
 
