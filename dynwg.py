@@ -27,6 +27,20 @@ def is_wg_client(netdev):
         return False
 
 
+def configfiles():
+    """Yields the available config files."""
+
+    for path in NETDEVS:
+        netdev = ConfigParser(strict=False)
+        netdev.read(path)
+
+        if is_wg_client(netdev):
+            name = path.stem
+            path = path.parent.joinpath(f'{name}.network')
+            network = ConfigParser(strict=False)
+            yield (name, netdev, network)
+
+
 def ip_changed(host, cache):
     """Determines whether the IP address
     of the specified host has changed.
@@ -53,6 +67,11 @@ def ip_changed(host, cache):
 def ping(gateway):
     """Pings the respective gateway."""
 
+    if gateway is None:
+        print('No gateway specified, cannot ping. Assuming not reachable.',
+              file=stderr, flush=True)
+        return False
+
     command = (PING, '-c', '3', '-W', '3', gateway)
 
     try:
@@ -68,7 +87,11 @@ def check(netdev, network, cache):
 
     endpoint = netdev['WireGuardPeer']['Endpoint']
     host, _ = endpoint.split(':')   # Discard port.
-    gateway = network['Route']['Gateway']
+
+    try:
+        gateway = network['Route']['Gateway']
+    except KeyError:
+        gateway = None
 
     if ip_changed(host, cache) or not ping(gateway):
         try:
@@ -85,16 +108,9 @@ def main():
     """Daemon's main loop."""
 
     with Cache(CACHE) as cache:
-        for path in NETDEVS:
-            netdev = ConfigParser(strict=False)
-            netdev.read(path)
-
-            if is_wg_client(netdev):
-                path = path.parent.joinpath(f'{path.stem}.network')
-                network = ConfigParser(strict=False)
-                network.read(path)
-                print('Checking:', path, flush=True)
-                check(netdev, network, cache)
+        for name, netdev, network in configfiles():
+            print('Checking:', name, flush=True)
+            check(netdev, network, cache)
 
 
 class Cache(dict):
