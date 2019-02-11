@@ -50,7 +50,7 @@ def configurations():
         netdev.read(path)
 
         try:
-            yield WGConfig.from_netdev(netdev)
+            yield WireGuardConfig.from_netdev(netdev)
         except NotAWireGuardDevice:
             continue
         except KeyError as key_error:
@@ -113,7 +113,7 @@ class Cache(dict):
                 dump(self, file, indent=2)
 
 
-class WGConfig(NamedTuple):
+class WireGuardConfig(NamedTuple):
     """Relevant WireGuard configuration settings."""
 
     interface: str
