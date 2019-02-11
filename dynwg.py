@@ -3,7 +3,7 @@
 
 from configparser import ConfigParser
 from contextlib import suppress
-from json import JSONDecodeError, dump, load
+from json import dump, load
 from pathlib import Path
 from socket import gaierror, gethostbyname
 from subprocess import run
@@ -95,8 +95,7 @@ class Cache(dict):
         """Loads the cache."""
         with suppress(FileNotFoundError):
             with self.path.open('r') as file:
-                with suppress(UnicodeDecodeError, JSONDecodeError):
-                    self.update(load(file))
+                self.update(load(file))
 
     def dump(self):
         """Dumps the cache."""
