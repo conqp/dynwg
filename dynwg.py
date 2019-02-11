@@ -6,13 +6,14 @@ from contextlib import suppress
 from json import dump, load
 from pathlib import Path
 from socket import gaierror, gethostbyname
-from subprocess import run
+from subprocess import CalledProcessError, DEVNULL, check_call, run
 from sys import stderr
 
 
 CACHE = Path('/var/cache/dynwg.json')
 SYSTEMD_NETWORK = Path('/etc/systemd/network')
 NETDEVS = SYSTEMD_NETWORK.glob('*.netdev')
+PING = '/usr/bin/ping'
 WG = '/usr/bin/wg'
 
 
@@ -26,7 +27,7 @@ def is_wg_client(netdev):
         return False
 
 
-def get_changed_ip(host, cache):
+def ip_changed(host, cache):
     """Determines whether the IP address
     of the specified host has changed.
     """
@@ -44,22 +45,40 @@ def get_changed_ip(host, cache):
         return False
     else:
         print(f'Host "{host}":', cached_ip, '→', current_ip, flush=True)
-        return False if cached_ip == current_ip else current_ip
+        return cached_ip != current_ip
     finally:
         cache[host] = current_ip
 
 
-def check(netdev, cache):
+def ping(gateway):
+    """Pings the respective gateway."""
+
+    command = (PING, '-c', '3', '-W', '3', gateway)
+
+    try:
+        check_call(command, stdout=DEVNULL, stderr=DEVNULL)
+    except CalledProcessError:
+        return False
+
+    return True
+
+
+def check(netdev, network, cache):
     """Checks the respective *.netdev config."""
 
     endpoint = netdev['WireGuardPeer']['Endpoint']
     host, _ = endpoint.split(':')   # Discard port.
-    changed_ip = get_changed_ip(host, cache)
+    gateway = network['Route']['Gateway']
 
-    if changed_ip:
-        interface = netdev['NetDev']['Name']
-        pubkey = netdev['WireGuardPeer']['PublicKey']
-        run((WG, 'set', interface, 'peer', pubkey, 'endpoint', changed_ip))
+    if ip_changed(host, cache) or not ping(gateway):
+        try:
+            current_ip = cache[host]
+        except KeyError:
+            print('Cannot reset connection.', file=stderr, flush=True)
+        else:
+            interface = netdev['NetDev']['Name']
+            pubkey = netdev['WireGuardPeer']['PublicKey']
+            run((WG, 'set', interface, 'peer', pubkey, 'endpoint', current_ip))
 
 
 def main():
@@ -71,8 +90,11 @@ def main():
             netdev.read(path)
 
             if is_wg_client(netdev):
+                path = path.parent.joinpath(f'{path.stem}.network')
+                network = ConfigParser(strict=False)
+                network.read(path)
                 print('Checking:', path, flush=True)
-                check(netdev, cache)
+                check(netdev, network, cache)
 
 
 class Cache(dict):
