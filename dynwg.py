@@ -80,6 +80,7 @@ def get_changed_ip(cache, host):
     except KeyError:
         return False
     else:
+        print(f'Host "{host}":', cached_ip, '→', current_ip, flush=True)
         return False if cached_ip == current_ip else current_ip
     finally:
         cache[host] = current_ip
@@ -89,7 +90,7 @@ def check(cache, netdev):
     """Checks the respective *.netdev config."""
 
     endpoint = netdev['WireGuardPeer']['Endpoint']
-    host, _ = endpoint.split(':')
+    host, _ = endpoint.split(':')   # Discard port.
     changed_ip = get_changed_ip(cache, host)
 
     if changed_ip:
@@ -107,6 +108,7 @@ def main():
             netdev.read(path)
 
             if is_wg(netdev):
+                print('Checking:', path, flush=True)
                 check(cache, netdev)
 
 
