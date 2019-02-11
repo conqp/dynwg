@@ -13,6 +13,7 @@ from sys import stderr
 CACHE = Path('/var/cache/dynwg.json')
 SYSTEMD_NETWORK = Path('/etc/systemd/network')
 NETDEVS = SYSTEMD_NETWORK.glob('*.netdev')
+NETWORKS = SYSTEMD_NETWORK.glob('*.network')
 PING = '/usr/bin/ping'
 WG = '/usr/bin/wg'
 
@@ -33,6 +34,22 @@ def is_wg_client(netdev):
         return False
 
 
+def get_network(interface):
+    """Returns the network configuration for the respective interface."""
+
+    for path in NETWORKS:
+        network = ConfigParser(strict=False)
+        network.read(path)
+
+        try:
+            if network['Match']['Name'] == interface:
+                return network
+        except KeyError:
+            continue
+
+    return {}   # Return empty dict to allow subscription.
+
+
 def configurations():
     """Yields the available configurations."""
 
@@ -40,12 +57,14 @@ def configurations():
         netdev = ConfigParser(strict=False)
         netdev.read(path)
 
+        try:
+            interface = netdev['NetDev']['Name']
+        except KeyError:
+            continue
+
         if is_wg_client(netdev):
-            name = path.stem
-            path = path.parent.joinpath(f'{name}.network')
-            network = ConfigParser(strict=False)
-            network.read(path)
-            yield (name, netdev, network)
+            network = get_network(interface)
+            yield (interface, netdev, network)
 
 
 def ip_changed(host, cache):
