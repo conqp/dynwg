@@ -3,4 +3,5 @@ Description=WireGuard DynDNS watchdog
 Requires=systemd-networkd.service
 
 [Service]
+Type=oneshot
 ExecStart=/usr/bin/dynwg

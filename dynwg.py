@@ -1,15 +1,6 @@
 #! /usr/bin/env python3
-"""wg-systemd-networkd-wd.
+"""WireGuard over systemd-networkd DynDNS watchdog daemon."""
 
-    WireGuard over systemd-networkd DynDNS watchdog daemon.
-
-Usage:
-    wg-systemd-networkd-wd [options]
-
-Options:
-    --interval=<interval>, -i   Set the loop interval [default: 60].
-    --help, -h                  Show this page.
-"""
 from configparser import ConfigParser
 from contextlib import suppress
 from json import JSONDecodeError, dump, load
