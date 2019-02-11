@@ -2,6 +2,7 @@
 """WireGuard over systemd-networkd DynDNS watchdog daemon."""
 
 from configparser import ConfigParser
+from contextlib import suppress
 from json import dump, load
 from pathlib import Path
 from socket import gaierror, gethostbyname
@@ -20,6 +21,10 @@ WG = '/usr/bin/wg'
 
 class NotAWireGuardDevice(Exception):
     """Indicates that the respective device is not a WireGuard device."""
+
+
+class NotAWireGuardClient(Exception):
+    """Indicates that the device is not a WireGuard client configuration."""
 
 
 def error(*msg):
@@ -49,12 +54,8 @@ def configurations():
         netdev = ConfigParser(strict=False)
         netdev.read(path)
 
-        try:
-            yield WireGuardConfig.from_netdev(netdev)
-        except NotAWireGuardDevice:
-            continue
-        except KeyError as key_error:
-            error(f'Missing key: "{key_error}".')
+        with suppress(NotAWireGuardDevice, NotAWireGuardClient, KeyError):
+            yield WireGuardClient.from_netdev(netdev)
 
 
 def main():
@@ -113,7 +114,7 @@ class Cache(dict):
                 dump(self, file, indent=2)
 
 
-class WireGuardConfig(NamedTuple):
+class WireGuardClient(NamedTuple):
     """Relevant WireGuard configuration settings."""
 
     interface: str
@@ -127,9 +128,13 @@ class WireGuardConfig(NamedTuple):
         if netdev['NetDev']['Kind'] != 'wireguard':
             raise NotAWireGuardDevice()
 
+        try:
+            endpoint = netdev['WireGuardPeer']['Endpoint']
+        except KeyError:
+            raise NotAWireGuardClient()
+
         interface = netdev['NetDev']['Name']
         pubkey = netdev['WireGuardPeer']['PublicKey']
-        endpoint = netdev['WireGuardPeer']['Endpoint']
         gateway = None
 
         for network in get_networks(interface):
