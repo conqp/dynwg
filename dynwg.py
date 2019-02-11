@@ -6,7 +6,7 @@ from contextlib import suppress
 from json import dump, load
 from pathlib import Path
 from socket import gaierror, gethostbyname
-from subprocess import DEVNULL, CalledProcessError, check_call, run
+from subprocess import DEVNULL, CalledProcessError, check_call
 from sys import stderr
 
 
@@ -15,6 +15,12 @@ SYSTEMD_NETWORK = Path('/etc/systemd/network')
 NETDEVS = SYSTEMD_NETWORK.glob('*.netdev')
 PING = '/usr/bin/ping'
 WG = '/usr/bin/wg'
+
+
+def error(*msg):
+    """Prints an error message."""
+
+    print(*msg, file=stderr, flush=True)
 
 
 def is_wg_client(netdev):
@@ -49,7 +55,7 @@ def ip_changed(host, cache):
     try:
         current_ip = gethostbyname(host)
     except gaierror:
-        print(f'Cannot resolve host: "{host}".', file=stderr, flush=True)
+        error(f'Cannot resolve host: "{host}".')
         cache.delete(host)
         return False
 
@@ -67,9 +73,8 @@ def ip_changed(host, cache):
 def gateway_unreachable(gateway):
     """Pings the respective gateway to check if it is unreachable."""
 
-    if gateway is None:
-        print('No gateway specified, cannot ping. Assuming not reachable.',
-              file=stderr, flush=True)
+    if not gateway:
+        error('No gateway specified, cannot ping. Assuming not reachable.')
         return True
 
     command = (PING, '-c', '3', '-W', '3', gateway)
@@ -82,11 +87,48 @@ def gateway_unreachable(gateway):
     return False
 
 
+def reset(netdev, host, cache):
+    """Resets the respective interface."""
+
+    try:
+        interface = netdev['NetDev']['Name']
+    except KeyError:
+        error('NetDev→Name not specified. Cannot reset interface.')
+        return False
+
+    try:
+        pubkey = netdev['WireGuardPeer']['PublicKey']
+    except KeyError:
+        error('WireGuardPeer→PublicKey not specified. Cannot reset interface.')
+        return False
+
+    try:
+        current_ip = cache[host]
+    except KeyError:
+        error('Current IP unknown. Cannot reset connection.')
+        return False
+
+    command = (WG, 'set', interface, 'peer', pubkey, 'endpoint', current_ip)
+
+    try:
+        check_call(command)
+    except CalledProcessError:
+        error('Resetting of interface failed.')
+        return False
+
+    return True
+
+
 def check(netdev, network, cache):
     """Checks the respective *.netdev config."""
 
-    endpoint = netdev['WireGuardPeer']['Endpoint']
-    host, _ = endpoint.split(':')   # Discard port.
+    try:
+        endpoint = netdev['WireGuardPeer']['Endpoint']
+    except KeyError:
+        error('WireGuardPeer→Endpoint not specified. Cannot check host.')
+        return False
+
+    host, *_ = endpoint.split(':')  # Discard port.
 
     try:
         gateway = network['Route']['Gateway']
@@ -94,14 +136,9 @@ def check(netdev, network, cache):
         gateway = None
 
     if ip_changed(host, cache) or gateway_unreachable(gateway):
-        try:
-            current_ip = cache[host]
-        except KeyError:
-            print('Cannot reset connection.', file=stderr, flush=True)
-        else:
-            interface = netdev['NetDev']['Name']
-            pubkey = netdev['WireGuardPeer']['PublicKey']
-            run((WG, 'set', interface, 'peer', pubkey, 'endpoint', current_ip))
+        return reset(netdev, host, cache)
+
+    return True
 
 
 def main():
@@ -109,7 +146,7 @@ def main():
 
     with Cache(CACHE) as cache:
         for name, netdev, network in configfiles():
-            print('Checking:', name, flush=True)
+            print(f'Checking: {name}.', flush=True)
             check(netdev, network, cache)
 
 
