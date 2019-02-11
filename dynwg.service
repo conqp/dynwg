@@ -1,0 +1,6 @@
+[Unit]
+Description=WireGuard DynDNS watchdog
+Requires=systemd-networkd.service
+
+[Service]
+ExecStart=/usr/bin/dynwg
