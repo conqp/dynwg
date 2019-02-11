@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 """WireGuard over systemd-networkd DynDNS watchdog daemon."""
 
-from configparser import DuplicateSectionError, ConfigParser
+from configparser import ConfigParser
 from json import dump, load
 from pathlib import Path
 from socket import gaierror, gethostbyname
@@ -65,12 +65,8 @@ def main():
     """Daemon's main loop."""
 
     for path in NETDEVS:
-        netdev = ConfigParser()
-
-        try:
-            netdev.read(path)
-        except DuplicateSectionError:
-            continue    # Probably multiple [WireGuardPeer] sections.
+        netdev = ConfigParser(strict=False)
+        netdev.read(path)
 
         if is_wg_client(netdev):
             print('Checking:', path, flush=True)
