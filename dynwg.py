@@ -33,8 +33,8 @@ def is_wg_client(netdev):
         return False
 
 
-def configfiles():
-    """Yields the available config files."""
+def configurations():
+    """Yields the available configurations."""
 
     for path in NETDEVS:
         netdev = ConfigParser(strict=False)
@@ -145,7 +145,7 @@ def main():
     """Daemon's main loop."""
 
     with Cache(CACHE) as cache:
-        for name, netdev, network in configfiles():
+        for name, netdev, network in configurations():
             print(f'Checking: {name}.', flush=True)
             check(netdev, network, cache)
 
