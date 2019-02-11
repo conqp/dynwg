@@ -6,7 +6,7 @@ from contextlib import suppress
 from json import dump, load
 from pathlib import Path
 from socket import gaierror, gethostbyname
-from subprocess import CalledProcessError, DEVNULL, check_call, run
+from subprocess import DEVNULL, CalledProcessError, check_call, run
 from sys import stderr
 
 
