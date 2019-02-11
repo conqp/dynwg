@@ -83,6 +83,11 @@ class Cache(dict):
     def __init__(self, path):
         super().__init__()
         self.path = path
+        self.dirty = False
+
+    def __setitem__(self, key, value):
+        self.dirty = self.dirty or self.get(key) != value
+        return super().__setitem__(key, value)
 
     def __enter__(self):
         self.load()
@@ -99,8 +104,9 @@ class Cache(dict):
 
     def dump(self):
         """Dumps the cache."""
-        with self.path.open('w') as file:
-            dump(self, file, indent=2)
+        if self.dirty:
+            with self.path.open('w') as file:
+                dump(self, file, indent=2)
 
 
 if __name__ == '__main__':
