@@ -131,6 +131,8 @@ class WireGuardClient(NamedTuple):
                 gateway = network['Route']['Gateway']
             except KeyError:
                 continue
+            else:
+                break
 
         return cls(interface, pubkey, endpoint, gateway)
 
