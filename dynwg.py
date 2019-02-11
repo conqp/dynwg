@@ -2,7 +2,6 @@
 """WireGuard over systemd-networkd DynDNS watchdog daemon."""
 
 from configparser import ConfigParser
-from contextlib import suppress
 from json import dump, load
 from pathlib import Path
 from socket import gaierror, gethostbyname
@@ -98,9 +97,11 @@ class Cache(dict):
 
     def load(self):
         """Loads the cache."""
-        with suppress(FileNotFoundError):
+        try:
             with self.path.open('r') as file:
                 self.update(load(file))
+        except FileNotFoundError:
+            self.dirty = True   # Ensure initial file creation.
 
     def dump(self):
         """Dumps the cache."""
