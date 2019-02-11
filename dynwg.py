@@ -47,24 +47,13 @@ def get_networks(interface):
             continue
 
 
-def configurations():
-    """Yields the available configurations."""
-
-    for path in NETDEVS:
-        netdev = ConfigParser(strict=False)
-        netdev.read(path)
-
-        with suppress(NotAWireGuardDevice, NotAWireGuardClient, KeyError):
-            yield WireGuardClient.from_netdev(netdev)
-
-
 def main():
     """Daemon's main loop."""
 
     with Cache(CACHE) as cache:
-        for wg_config in configurations():
-            print(f'Checking: {wg_config.interface}.', flush=True)
-            wg_config.check(cache)
+        for wire_guard_client in WireGuardClient.all():
+            print(f'Checking: {wire_guard_client.interface}.', flush=True)
+            wire_guard_client.check(cache)
 
 
 class Cache(dict):
@@ -144,6 +133,16 @@ class WireGuardClient(NamedTuple):
                 continue
 
         return cls(interface, pubkey, endpoint, gateway)
+
+    @classmethod
+    def all(cls):
+        """Yields all available configurations."""
+        for path in NETDEVS:
+            netdev = ConfigParser(strict=False)
+            netdev.read(path)
+
+            with suppress(NotAWireGuardDevice, NotAWireGuardClient, KeyError):
+                yield cls.from_netdev(netdev)
 
     @property
     def hostname(self):
