@@ -16,36 +16,6 @@ NETDEVS = SYSTEMD_NETWORK.glob('*.netdev')
 WG = '/usr/bin/wg'
 
 
-class Cache(dict):
-    """Host name → IP address cache."""
-
-    def __new__(cls, _):
-        return super().__new__(cls)
-
-    def __init__(self, path):
-        super().__init__()
-        self.path = path
-
-    def __enter__(self):
-        self.load()
-        return self
-
-    def __exit__(self, *_):
-        self.dump()
-
-    def load(self):
-        """Loads the cache."""
-        with suppress(FileNotFoundError):
-            with self.path.open('r') as file:
-                with suppress(UnicodeDecodeError, JSONDecodeError):
-                    self.update(load(file))
-
-    def dump(self):
-        """Dumps the cache."""
-        with self.path.open('w') as file:
-            dump(self, file, indent=2)
-
-
 def is_wg_client(netdev):
     """Checks whether the netdev is a WireGuard interface."""
 
@@ -102,6 +72,36 @@ def main():
             if is_wg_client(netdev):
                 print('Checking:', path, flush=True)
                 check(cache, netdev)
+
+
+class Cache(dict):
+    """Host name → IP address cache."""
+
+    def __new__(cls, _):
+        return super().__new__(cls)
+
+    def __init__(self, path):
+        super().__init__()
+        self.path = path
+
+    def __enter__(self):
+        self.load()
+        return self
+
+    def __exit__(self, *_):
+        self.dump()
+
+    def load(self):
+        """Loads the cache."""
+        with suppress(FileNotFoundError):
+            with self.path.open('r') as file:
+                with suppress(UnicodeDecodeError, JSONDecodeError):
+                    self.update(load(file))
+
+    def dump(self):
+        """Dumps the cache."""
+        with self.path.open('w') as file:
+            dump(self, file, indent=2)
 
 
 if __name__ == '__main__':
