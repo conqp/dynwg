@@ -20,7 +20,7 @@ class Cache(dict):
     """Host name → IP address cache."""
 
     def __new__(cls, _):
-        return super().__new__()
+        return super().__new__(cls)
 
     def __init__(self, path):
         super().__init__()
