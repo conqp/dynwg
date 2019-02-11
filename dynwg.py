@@ -2,6 +2,7 @@
 """WireGuard over systemd-networkd DynDNS watchdog daemon."""
 
 from configparser import ConfigParser
+from contextlib import suppress
 from json import dump, load
 from pathlib import Path
 from socket import gaierror, gethostbyname
@@ -25,35 +26,35 @@ def is_wg_client(netdev):
         return False
 
 
-def get_changed_ip(host):
+def get_changed_ip(host, cache):
     """Determines whether the IP address
     of the specified host has changed.
     """
 
-    with Cache(CACHE) as cache:
-        try:
-            current_ip = gethostbyname(host)
-        except gaierror:
-            print(f'Cannot resolve host: "{host}".', file=stderr, flush=True)
-            return False
+    try:
+        current_ip = gethostbyname(host)
+    except gaierror:
+        print(f'Cannot resolve host: "{host}".', file=stderr, flush=True)
+        cache.delete(host)
+        return False
 
-        try:
-            cached_ip = cache[host]
-        except KeyError:
-            return False
-        else:
-            print(f'Host "{host}":', cached_ip, '→', current_ip, flush=True)
-            return False if cached_ip == current_ip else current_ip
-        finally:
-            cache[host] = current_ip
+    try:
+        cached_ip = cache[host]
+    except KeyError:
+        return False
+    else:
+        print(f'Host "{host}":', cached_ip, '→', current_ip, flush=True)
+        return False if cached_ip == current_ip else current_ip
+    finally:
+        cache[host] = current_ip
 
 
-def check(netdev):
+def check(netdev, cache):
     """Checks the respective *.netdev config."""
 
     endpoint = netdev['WireGuardPeer']['Endpoint']
     host, _ = endpoint.split(':')   # Discard port.
-    changed_ip = get_changed_ip(host)
+    changed_ip = get_changed_ip(host, cache)
 
     if changed_ip:
         interface = netdev['NetDev']['Name']
@@ -64,13 +65,14 @@ def check(netdev):
 def main():
     """Daemon's main loop."""
 
-    for path in NETDEVS:
-        netdev = ConfigParser(strict=False)
-        netdev.read(path)
+    with Cache(CACHE) as cache:
+        for path in NETDEVS:
+            netdev = ConfigParser(strict=False)
+            netdev.read(path)
 
-        if is_wg_client(netdev):
-            print('Checking:', path, flush=True)
-            check(netdev)
+            if is_wg_client(netdev):
+                print('Checking:', path, flush=True)
+                check(netdev, cache)
 
 
 class Cache(dict):
@@ -82,11 +84,17 @@ class Cache(dict):
     def __init__(self, path):
         super().__init__()
         self.path = path
-        self.dirty = False
+        self._dirty = False
 
     def __setitem__(self, key, value):
-        self.dirty = self.dirty or self.get(key) != value
+        self.dirty = self.get(key) != value
         return super().__setitem__(key, value)
+
+    def delete(self, key):
+        """Deletes the respective key."""
+        with suppress(KeyError):
+            del self[key]
+            self.dirty = True
 
     def __enter__(self):
         self.load()
@@ -94,6 +102,16 @@ class Cache(dict):
 
     def __exit__(self, *_):
         self.dump()
+
+    @property
+    def dirty(self):
+        """Determines whether the cache is considered dirty."""
+        return self._dirty
+
+    @dirty.setter
+    def dirty(self, dirty):
+        """Sets whether the cache is dirty."""
+        self._dirty = self._dirty or dirty
 
     def load(self):
         """Loads the cache."""
