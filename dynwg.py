@@ -106,7 +106,7 @@ def reset(netdev, host, cache):
     try:
         current_ip = cache[host]
     except KeyError:
-        error('Current IP unknown. Cannot reset connection.')
+        error('Current IP unknown. Cannot reset interface.')
         return False
 
     command = (WG, 'set', interface, 'peer', pubkey, 'endpoint', current_ip)
