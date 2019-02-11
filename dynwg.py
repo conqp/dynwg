@@ -17,7 +17,7 @@ WG = '/usr/bin/wg'
 
 
 def is_wg_client(netdev):
-    """Checks whether the netdev is a WireGuard interface."""
+    """Checks whether the netdev is a WireGuard client interface."""
 
     try:
         _ = netdev['WireGuardPeer']['Endpoint']     # Check if endpoint is set.
