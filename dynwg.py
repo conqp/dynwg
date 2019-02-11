@@ -26,34 +26,35 @@ def is_wg_client(netdev):
         return False
 
 
-def get_changed_ip(cache, host):
+def get_changed_ip(host):
     """Determines whether the IP address
     of the specified host has changed.
     """
 
-    try:
-        current_ip = gethostbyname(host)
-    except gaierror:
-        print(f'Host "{host}" cannot be resolved.', file=stderr, flush=True)
-        return False
+    with Cache(CACHE) as cache:
+        try:
+            current_ip = gethostbyname(host)
+        except gaierror:
+            print(f'Cannot resolve host: "{host}".', file=stderr, flush=True)
+            return False
 
-    try:
-        cached_ip = cache[host]
-    except KeyError:
-        return False
-    else:
-        print(f'Host "{host}":', cached_ip, '→', current_ip, flush=True)
-        return False if cached_ip == current_ip else current_ip
-    finally:
-        cache[host] = current_ip
+        try:
+            cached_ip = cache[host]
+        except KeyError:
+            return False
+        else:
+            print(f'Host "{host}":', cached_ip, '→', current_ip, flush=True)
+            return False if cached_ip == current_ip else current_ip
+        finally:
+            cache[host] = current_ip
 
 
-def check(cache, netdev):
+def check(netdev):
     """Checks the respective *.netdev config."""
 
     endpoint = netdev['WireGuardPeer']['Endpoint']
     host, _ = endpoint.split(':')   # Discard port.
-    changed_ip = get_changed_ip(cache, host)
+    changed_ip = get_changed_ip(host)
 
     if changed_ip:
         interface = netdev['NetDev']['Name']
@@ -64,14 +65,13 @@ def check(cache, netdev):
 def main():
     """Daemon's main loop."""
 
-    with Cache(CACHE) as cache:
-        for path in NETDEVS:
-            netdev = ConfigParser()
-            netdev.read(path)
+    for path in NETDEVS:
+        netdev = ConfigParser()
+        netdev.read(path)
 
-            if is_wg_client(netdev):
-                print('Checking:', path, flush=True)
-                check(cache, netdev)
+        if is_wg_client(netdev):
+            print('Checking:', path, flush=True)
+            check(netdev)
 
 
 class Cache(dict):
