@@ -64,22 +64,22 @@ def ip_changed(host, cache):
         cache[host] = current_ip
 
 
-def ping(gateway):
-    """Pings the respective gateway."""
+def gateway_unreachable(gateway):
+    """Pings the respective gateway to check if it is unreachable."""
 
     if gateway is None:
         print('No gateway specified, cannot ping. Assuming not reachable.',
               file=stderr, flush=True)
-        return False
+        return True
 
     command = (PING, '-c', '3', '-W', '3', gateway)
 
     try:
         check_call(command, stdout=DEVNULL, stderr=DEVNULL)
     except CalledProcessError:
-        return False
+        return True
 
-    return True
+    return False
 
 
 def check(netdev, network, cache):
@@ -93,7 +93,7 @@ def check(netdev, network, cache):
     except KeyError:
         gateway = None
 
-    if ip_changed(host, cache) or not ping(gateway):
+    if ip_changed(host, cache) or gateway_unreachable(gateway):
         try:
             current_ip = cache[host]
         except KeyError:
