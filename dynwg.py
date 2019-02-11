@@ -44,6 +44,7 @@ def configurations():
             name = path.stem
             path = path.parent.joinpath(f'{name}.network')
             network = ConfigParser(strict=False)
+            network.read(path)
             yield (name, netdev, network)
 
 
