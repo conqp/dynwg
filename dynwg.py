@@ -59,21 +59,22 @@ def ip_changed(host, cache):
         cache.delete(host)
         return False
 
-    try:
-        cached_ip = cache[host]
-    except KeyError:
+    cached_ip = cache.get(host)
+    cache[host] = current_ip
+
+    if cached_ip is None:
         return False
-    else:
-        print(f'Host "{host}":', cached_ip, '→', current_ip, flush=True)
-        return cached_ip != current_ip
-    finally:
-        cache[host] = current_ip
+
+    print(f'Host "{host}":', cached_ip, '→', current_ip, flush=True)
+    return cached_ip != current_ip
 
 
-def gateway_unreachable(gateway):
+def gateway_unreachable(network):
     """Pings the respective gateway to check if it is unreachable."""
 
-    if not gateway:
+    try:
+        gateway = network['Route']['Gateway']
+    except KeyError:
         error('No gateway specified, cannot ping. Assuming not reachable.')
         return True
 
@@ -82,13 +83,13 @@ def gateway_unreachable(gateway):
     try:
         check_call(command, stdout=DEVNULL, stderr=DEVNULL)
     except CalledProcessError:
-        print(f'Gateway "{gateway} is not reachable.', flush=True)
+        print(f'Gateway "{gateway}" is not reachable.', flush=True)
         return True
 
     return False
 
 
-def reset(netdev, host, cache):
+def reset(netdev, current_ip):
     """Resets the respective interface."""
 
     try:
@@ -101,12 +102,6 @@ def reset(netdev, host, cache):
         pubkey = netdev['WireGuardPeer']['PublicKey']
     except KeyError:
         error('WireGuardPeer→PublicKey not specified. Cannot reset interface.')
-        return False
-
-    try:
-        current_ip = cache[host]
-    except KeyError:
-        error('Current IP unknown. Cannot reset interface.')
         return False
 
     command = (WG, 'set', interface, 'peer', pubkey, 'endpoint', current_ip)
@@ -131,13 +126,14 @@ def check(netdev, network, cache):
 
     host, *_ = endpoint.split(':')  # Discard port.
 
-    try:
-        gateway = network['Route']['Gateway']
-    except KeyError:
-        gateway = None
+    if ip_changed(host, cache) or gateway_unreachable(network):
+        try:
+            current_ip = cache[host]
+        except KeyError:
+            error('Current IP unknown. Cannot reset interface.')
+            return False
 
-    if ip_changed(host, cache) or gateway_unreachable(gateway):
-        return reset(netdev, host, cache)
+        return reset(netdev, current_ip)
 
     return True
 
