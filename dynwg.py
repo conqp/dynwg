@@ -103,9 +103,9 @@ class Cache(dict):
         except FileNotFoundError:
             self.dirty = True   # Ensure initial file creation.
 
-    def dump(self):
+    def dump(self, force=False):
         """Dumps the cache."""
-        if self.dirty:
+        if self.dirty or force:
             with self.path.open('w') as file:
                 dump(self, file, indent=2)
 
