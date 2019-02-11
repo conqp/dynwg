@@ -90,12 +90,6 @@ class Cache(dict):
         self.dirty = self.get(key) != value
         return super().__setitem__(key, value)
 
-    def delete(self, key):
-        """Deletes the respective key."""
-        with suppress(KeyError):
-            del self[key]
-            self.dirty = True
-
     def __enter__(self):
         self.load()
         return self
@@ -112,6 +106,12 @@ class Cache(dict):
     def dirty(self, dirty):
         """Sets whether the cache is dirty."""
         self._dirty = self._dirty or dirty
+
+    def delete(self, key):
+        """Deletes the respective key."""
+        with suppress(KeyError):
+            del self[key]
+            self.dirty = True
 
     def load(self):
         """Loads the cache."""
