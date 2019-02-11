@@ -82,6 +82,7 @@ def gateway_unreachable(gateway):
     try:
         check_call(command, stdout=DEVNULL, stderr=DEVNULL)
     except CalledProcessError:
+        print(f'Gateway "{gateway} is not reachable.', flush=True)
         return True
 
     return False
