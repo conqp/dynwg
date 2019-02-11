@@ -2,7 +2,6 @@
 """WireGuard over systemd-networkd DynDNS watchdog daemon."""
 
 from configparser import ConfigParser
-from contextlib import suppress
 from json import dump, load
 from pathlib import Path
 from socket import gaierror, gethostbyname
@@ -76,7 +75,6 @@ def ip_changed(host, cache):
         current_ip = gethostbyname(host)
     except gaierror:
         error(f'Cannot resolve host: "{host}".')
-        cache.delete(host)
         return False
 
     cached_ip = cache.get(host)
@@ -109,7 +107,7 @@ def gateway_unreachable(network):
     return False
 
 
-def reset(netdev, current_ip):
+def reset(netdev, endpoint):
     """Resets the respective interface."""
 
     try:
@@ -124,7 +122,7 @@ def reset(netdev, current_ip):
         error('WireGuardPeer→PublicKey not specified. Cannot reset interface.')
         return False
 
-    command = (WG, 'set', interface, 'peer', pubkey, 'endpoint', current_ip)
+    command = (WG, 'set', interface, 'peer', pubkey, 'endpoint', endpoint)
 
     try:
         check_call(command)
@@ -147,13 +145,7 @@ def check(netdev, network, cache):
     host, *_ = endpoint.split(':')  # Discard port.
 
     if ip_changed(host, cache) or gateway_unreachable(network):
-        try:
-            current_ip = cache[host]
-        except KeyError:
-            error('Current IP unknown. Cannot reset interface.')
-            return False
-
-        return reset(netdev, current_ip)
+        return reset(netdev, endpoint)
 
     return True
 
@@ -198,12 +190,6 @@ class Cache(dict):
     def dirty(self, dirty):
         """Sets whether the cache is dirty."""
         self._dirty = self._dirty or dirty
-
-    def delete(self, key):
-        """Deletes the respective key."""
-        with suppress(KeyError):
-            del self[key]
-            self.dirty = True
 
     def load(self):
         """Loads the cache."""
