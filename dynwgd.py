@@ -13,13 +13,17 @@ Options:
 
 from configparser import ConfigParser
 from contextlib import suppress
+from functools import partial
 from json import dump, load
 from pathlib import Path
 from signal import SIGUSR1, signal
 from socket import gaierror, gethostbyname
 from subprocess import DEVNULL, CalledProcessError, check_call
 from sys import stderr
+from time import sleep
 from typing import NamedTuple
+
+from docopt import docopt
 
 
 CACHE = Path('/var/cache/dynwg.json')
@@ -64,16 +68,6 @@ def get_networks(interface):
             continue
 
 
-def mainloop(interval):
-    """Main daemon loop."""
-
-    while True:
-        for wire_guard_client in WireGuardClient.all():
-            wire_guard_client.check(cache)
-
-        sleep(interval)
-
-
 def main(options):
     """Daemon's main loop."""
 
@@ -83,7 +77,11 @@ def main(options):
         signal(SIGUSR1, partial(dump_cache, cache))
 
         try:
-            mainloop(interval)
+            while True:
+                for wire_guard_client in WireGuardClient.all():
+                    wire_guard_client.check(cache)
+
+                sleep(interval)
         except KeyboardInterrupt:
             return
 
@@ -245,4 +243,4 @@ class WireGuardClient(NamedTuple):
 
 
 if __name__ == '__main__':
-    main()
+    main(docopt(__doc__))
