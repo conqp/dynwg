@@ -3,7 +3,7 @@ Description=WireGuard DynDNS watchdog
 Requires=systemd-networkd.service
 
 [Service]
-ExecStart=/usr/bin/dynwgd
+ExecStart=/usr/bin/dynwgd %i
 
 [Install]
 WantedBy=network.target
