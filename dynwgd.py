@@ -1,10 +1,21 @@
 #! /usr/bin/env python3
-"""WireGuard over systemd-networkd DynDNS watchdog daemon."""
+"""dynwgd.
+
+    WireGuard over systemd-networkd DynDNS watchdog daemon.
+
+Usage:
+    dynwgd <interval>
+    dynwgd --help
+
+Options:
+    --help, -h      Prins this page.
+"""
 
 from configparser import ConfigParser
 from contextlib import suppress
 from json import dump, load
 from pathlib import Path
+from signal import SIGUSR1, signal
 from socket import gaierror, gethostbyname
 from subprocess import DEVNULL, CalledProcessError, check_call
 from sys import stderr
@@ -27,6 +38,12 @@ class NotAWireGuardClient(Exception):
     """Indicates that the device is not a WireGuard client configuration."""
 
 
+def dump_cache(cache, *_):  # Discard signal and stack frame.
+    """Dumps the cache."""
+
+    cache.dump(force=True)
+
+
 def error(*msg):
     """Prints an error message."""
 
@@ -47,13 +64,28 @@ def get_networks(interface):
             continue
 
 
-def main():
+def mainloop(interval):
+    """Main daemon loop."""
+
+    while True:
+        for wire_guard_client in WireGuardClient.all():
+            wire_guard_client.check(cache)
+
+        sleep(interval)
+
+
+def main(options):
     """Daemon's main loop."""
 
+    interval = float(options['<interval>'])
+
     with Cache(CACHE) as cache:
-        for wire_guard_client in WireGuardClient.all():
-            print(f'Checking: {wire_guard_client.interface}.', flush=True)
-            wire_guard_client.check(cache)
+        signal(SIGUSR1, partial(dump_cache, cache))
+
+        try:
+            mainloop(interval)
+        except KeyboardInterrupt:
+            return
 
 
 class Cache(dict):
