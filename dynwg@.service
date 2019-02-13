@@ -4,6 +4,7 @@ Requires=systemd-networkd.service
 
 [Service]
 ExecStart=/usr/bin/dynwgd %i
+Restart=on-failure
 
 [Install]
 WantedBy=network.target
