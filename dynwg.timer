@@ -1,0 +1,10 @@
+[Unit]
+Description=WireGuard hourly DynDNS check
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
