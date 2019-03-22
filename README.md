@@ -18,4 +18,4 @@ The daemon is run by enabling and starting `dynwg.timer`:
 
     systemctl enable --now dynwg.timer
 
-Alternatively in can be invoked manually by running executing `/usr/bin/dynwg` or `/usr/local/sbin/dynwg` respectively.
+Alternatively in can be invoked manually by executing `/usr/bin/dynwg` or `/usr/local/sbin/dynwg` respectively.
