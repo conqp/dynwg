@@ -1,22 +1,23 @@
 #! /usr/bin/env python3
 """WireGuard over systemd-networkd DynDNS watchdog daemon."""
 
+from argparse import ArgumentParser
 from configparser import ConfigParser
 from contextlib import suppress
 from json import dump, load
+from logging import DEBUG, INFO, basicConfig, getLogger
 from pathlib import Path
 from socket import gaierror, gethostbyname
 from subprocess import DEVNULL, CalledProcessError, check_call
-from sys import stderr
 from typing import NamedTuple
 
 
 CACHE = Path('/var/cache/dynwg.json')
 SYSTEMD_NETWORK = Path('/etc/systemd/network')
-NETDEVS = SYSTEMD_NETWORK.glob('*.netdev')
-NETWORKS = SYSTEMD_NETWORK.glob('*.network')
 PING = '/usr/bin/ping'
 WG = '/usr/bin/wg'
+LOGGER = getLogger(__file__)
+LOG_FORMAT = '[%(levelname)s] %(name)s: %(message)s'
 
 
 class NotAWireGuardDevice(Exception):
@@ -27,16 +28,10 @@ class NotAWireGuardClient(Exception):
     """Indicates that the device is not a WireGuard client configuration."""
 
 
-def error(*msg):
-    """Prints an error message."""
-
-    print(*msg, file=stderr, flush=True)
-
-
 def get_networks(interface):
     """Returns the network configuration for the respective interface."""
 
-    for path in NETWORKS:
+    for path in SYSTEMD_NETWORK.glob('*.network'):
         network = ConfigParser(strict=False)
         network.read(path)
 
@@ -47,12 +42,24 @@ def get_networks(interface):
             continue
 
 
+def get_args():
+    """Returns the command line arguments."""
+
+    parser = ArgumentParser(description='WireGuard DynDNS watchdog.')
+    parser.add_argument(
+        '-d', '--debug', action='store_true', help='enable debug logging')
+    return parser.parse_args()
+
+
 def main():
     """Daemon's main loop."""
 
+    args = get_args()
+    basicConfig(level=DEBUG if args.debug else INFO, format=LOG_FORMAT)
+
     with Cache(CACHE) as cache:
         for wire_guard_client in WireGuardClient.all():
-            print(f'Checking: {wire_guard_client.interface}.', flush=True)
+            LOGGER.info('Checking: %s.', wire_guard_client.interface)
             wire_guard_client.check(cache)
 
 
@@ -139,7 +146,7 @@ class WireGuardClient(NamedTuple):
     @classmethod
     def all(cls):
         """Yields all available configurations."""
-        for path in NETDEVS:
+        for path in SYSTEMD_NETWORK.glob('*.netdev'):
             netdev = ConfigParser(strict=False)
             netdev.read(path)
 
@@ -157,6 +164,30 @@ class WireGuardClient(NamedTuple):
         """Returns the host's current IP address."""
         return gethostbyname(self.hostname)
 
+    @property
+    def gateway_unreachable(self):
+        """Pings the gateway to check if it is (un)reachable."""
+        if self.gateway is None:
+            LOGGER.error('No gateway specified, cannot ping.')
+            LOGGER.info('Assuming not reachable.')
+            return True
+
+        command = (PING, '-c', '3', '-W', '3', self.gateway)
+
+        try:
+            check_call(command, stdout=DEVNULL, stderr=DEVNULL)
+        except CalledProcessError:
+            LOGGER.info('Gateway "%s" is not reachable.', self.gateway)
+            return True
+
+        return False
+
+    @property
+    def reset_command(self):
+        """Returns the command tuple to reset the WireGuard interface."""
+        return (WG, 'set', self.interface, 'peer', self.pubkey, 'endpoint',
+                self.endpoint)
+
     def ip_changed(self, cache):
         """Determines whether the IP address
         of the specified host has changed.
@@ -166,49 +197,30 @@ class WireGuardClient(NamedTuple):
         try:
             cache[self.hostname] = current_ip = self.current_ip
         except gaierror:
-            error(f'Cannot resolve host: "{self.hostname}".')
+            LOGGER.error('Cannot resolve hostname: "%s".', self.hostname)
             return False
 
         if cached_ip is None or cached_ip == current_ip:
             return False
 
-        print(f'Host "{self.hostname}":', cached_ip, '→', current_ip,
-              flush=True)
+        LOGGER.info('Host "%s": %s → %s', self.hostname, cached_ip, current_ip)
         return True
-
-    def gateway_unreachable(self):
-        """Pings the gateway to check if it is (un)reachable."""
-        if self.gateway is None:
-            error('No gateway specified, cannot ping. Assuming not reachable.')
-            return True
-
-        command = (PING, '-c', '3', '-W', '3', self.gateway)
-
-        try:
-            check_call(command, stdout=DEVNULL, stderr=DEVNULL)
-        except CalledProcessError:
-            print(f'Gateway "{self.gateway}" is not reachable.', flush=True)
-            return True
-
-        return False
 
     def reset(self):
         """Resets the interface."""
-        command = (WG, 'set', self.interface, 'peer', self.pubkey, 'endpoint',
-                   self.endpoint)
-
         try:
-            check_call(command)
-        except CalledProcessError:
-            error('Resetting of interface failed.')
+            check_call(self.reset_command)
+        except CalledProcessError as cpe:
+            LOGGER.error('Resetting of interface failed.')
+            LOGGER.debug(cpe)
             return False
 
-        print('Interface reset.', flush=True)
+        LOGGER.info('Interface reset.')
         return True
 
     def check(self, cache):
         """Checks, whether the WireGuard connection is still intact."""
-        if self.ip_changed(cache) or self.gateway_unreachable():
+        if self.ip_changed(cache) or self.gateway_unreachable:
             self.reset()
 
 
