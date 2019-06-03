@@ -126,11 +126,11 @@ class WireGuardClient(NamedTuple):
 
         try:
             endpoint = netdev['WireGuardPeer']['Endpoint']
+            pubkey = netdev['WireGuardPeer']['PublicKey']
         except KeyError:
             raise NotAWireGuardClient()
 
         interface = netdev['NetDev']['Name']
-        pubkey = netdev['WireGuardPeer']['PublicKey']
         gateway = None
 
         for network in get_networks(interface):
@@ -138,8 +138,8 @@ class WireGuardClient(NamedTuple):
                 gateway = network['Route']['Gateway']
             except KeyError:
                 continue
-            else:
-                break
+
+            break   # Use first available gateway.
 
         return cls(interface, pubkey, endpoint, gateway)
 
@@ -156,8 +156,7 @@ class WireGuardClient(NamedTuple):
     @property
     def hostname(self):
         """Returns the hostname."""
-        hostname, *_ = self.endpoint.split(':')     # Discard port.
-        return hostname
+        return self.endpoint.split(':', maxsplit=1)[0]
 
     @property
     def current_ip(self):
