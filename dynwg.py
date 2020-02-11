@@ -72,10 +72,10 @@ class Cache(dict):
     def __init__(self, path):
         super().__init__()
         self.path = path
-        self._dirty = False
+        self.synced = True
 
     def __setitem__(self, key, value):
-        self.dirty = self.get(key) != value
+        self.synced = self.synced and self.get(key) == value
         return super().__setitem__(key, value)
 
     def __enter__(self):
@@ -85,29 +85,21 @@ class Cache(dict):
     def __exit__(self, *_):
         self.dump()
 
-    @property
-    def dirty(self):
-        """Determines whether the cache is considered dirty."""
-        return self._dirty
-
-    @dirty.setter
-    def dirty(self, dirty):
-        """Sets whether the cache is dirty."""
-        self._dirty = self._dirty or dirty
-
     def load(self):
         """Loads the cache."""
         try:
             with self.path.open('r') as file:
                 self.update(load(file))
         except FileNotFoundError:
-            self.dirty = True   # Ensure initial file creation.
+            self.synced = False  # Ensure initial file creation.
 
     def dump(self, force=False):
         """Dumps the cache."""
-        if self.dirty or force:
+        if not self.synced or force:
             with self.path.open('w') as file:
                 dump(self, file, indent=2)
+
+            self.synced = True
 
 
 class WireGuardClient(NamedTuple):
