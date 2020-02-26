@@ -100,6 +100,24 @@ class Cache(dict):
     def __exit__(self, *_):
         self.dump()
 
+    def ip_changed(self, hostname: str) -> bool:
+        """Determines whether the IP address
+        of the specified host has changed.
+        """
+        cached_ip = self.get(hostname)
+
+        try:
+            self[hostname] = current_ip = gethostbyname(hostname)
+        except gaierror:
+            LOGGER.error('Cannot resolve hostname: "%s".', hostname)
+            return False
+
+        if cached_ip is None or cached_ip == current_ip:
+            return False
+
+        LOGGER.info('Host "%s": %s → %s', hostname, cached_ip, current_ip)
+        return True
+
     def load(self) -> None:
         """Loads the cache."""
         try:
@@ -167,11 +185,6 @@ class WireGuardClient(NamedTuple):
         return self.endpoint.split(':', maxsplit=1)[0]
 
     @property
-    def current_ip(self) -> str:
-        """Returns the host's current IP address."""
-        return gethostbyname(self.hostname)
-
-    @property
     def gateway_unreachable(self) -> bool:
         """Pings the gateway to check if it is (un)reachable."""
         if self.gateway is None:
@@ -195,24 +208,6 @@ class WireGuardClient(NamedTuple):
         return (WG, 'set', self.interface, 'peer', self.pubkey, 'endpoint',
                 self.endpoint)
 
-    def ip_changed(self, cache: Cache) -> bool:
-        """Determines whether the IP address
-        of the specified host has changed.
-        """
-        cached_ip = cache.get(self.hostname)
-
-        try:
-            cache[self.hostname] = current_ip = self.current_ip
-        except gaierror:
-            LOGGER.error('Cannot resolve hostname: "%s".', self.hostname)
-            return False
-
-        if cached_ip is None or cached_ip == current_ip:
-            return False
-
-        LOGGER.info('Host "%s": %s → %s', self.hostname, cached_ip, current_ip)
-        return True
-
     def reset(self) -> bool:
         """Resets the interface."""
         try:
@@ -227,7 +222,7 @@ class WireGuardClient(NamedTuple):
 
     def check(self, cache: Cache, check_gateway: bool = False) -> None:
         """Checks, whether the WireGuard connection is still intact."""
-        if self.ip_changed(cache):
+        if cache.ip_changed(self.hostname):
             self.reset()
         elif check_gateway and self.gateway_unreachable:
             self.reset()
