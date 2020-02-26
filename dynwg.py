@@ -110,9 +110,13 @@ class Cache(dict):
             self[hostname] = current_ip = gethostbyname(hostname)
         except gaierror:
             LOGGER.error('Cannot resolve hostname: "%s".', hostname)
-            return False
+            return True
 
-        if cached_ip is None or cached_ip == current_ip:
+        if cached_ip is None:
+            LOGGER.info('Added host "%s": %s', hostname, current_ip)
+            return True
+
+        if cached_ip == current_ip:
             return False
 
         LOGGER.info('Host "%s": %s → %s', hostname, cached_ip, current_ip)
