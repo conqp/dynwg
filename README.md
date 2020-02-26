@@ -11,7 +11,7 @@ Runtime caching is performed in `/var/cache/dynwg.json`:
 
 ## Installation
 For Arch Linux users there is an [AUR package](https://aur.archlinux.org/packages/dynwg/) available.  
-You can also manually copy `dynwg.py` to `/usr/local/sbin/dynwg` and `dynwg.{service,timer}` to `/etc/systemd/system`. Be sure to change the `ExecStart=` setting in `dynwg.service` to the path where you copied `dynwg.py` to.
+You can also manually run `setup.py install`.
 
 ## Running
 The daemon is run by enabling and starting `dynwg.timer`:
