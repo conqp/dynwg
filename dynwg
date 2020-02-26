@@ -1,0 +1,8 @@
+#! /usr/bin/env python3
+"""WireGuard over systemd-networkd DynDNS watchdog daemon."""
+
+from dynwg import main
+
+
+if __name__ == '__main__':
+    main()

@@ -1,15 +1,27 @@
-#! /usr/bin/env python3
 """WireGuard over systemd-networkd DynDNS watchdog daemon."""
 
-from argparse import ArgumentParser
+from __future__ import annotations
+from argparse import ArgumentParser, Namespace
 from configparser import ConfigParser
 from contextlib import suppress
 from json import dump, load
 from logging import DEBUG, INFO, basicConfig, getLogger
+from os import linesep
 from pathlib import Path
 from socket import gaierror, gethostbyname
 from subprocess import DEVNULL, CalledProcessError, check_call
-from typing import NamedTuple
+from typing import Generator, NamedTuple
+
+
+__all__ = [
+    'CACHE',
+    'NotAWireGuardDevice',
+    'NotAWireGuardClient',
+    'get_networks',
+    'main',
+    'Cache',
+    'WireGuardClient'
+]
 
 
 CACHE = Path('/var/cache/dynwg.json')
@@ -28,7 +40,7 @@ class NotAWireGuardClient(Exception):
     """Indicates that the device is not a WireGuard client configuration."""
 
 
-def get_networks(interface):
+def get_networks(interface: str) -> Generator[ConfigParser, None, None]:
     """Returns the network configuration for the respective interface."""
 
     for path in SYSTEMD_NETWORK.glob('*.network'):
@@ -42,7 +54,7 @@ def get_networks(interface):
             continue
 
 
-def get_args():
+def get_args() -> Namespace:
     """Returns the command line arguments."""
 
     parser = ArgumentParser(description='WireGuard DynDNS watchdog.')
@@ -85,7 +97,7 @@ class Cache(dict):
     def __exit__(self, *_):
         self.dump()
 
-    def load(self):
+    def load(self) -> None:
         """Loads the cache."""
         try:
             with self.path.open('r') as file:
@@ -93,11 +105,12 @@ class Cache(dict):
         except FileNotFoundError:
             self.synced = False  # Ensure initial file creation.
 
-    def dump(self, force=False):
+    def dump(self, force=False) -> None:
         """Dumps the cache."""
         if not self.synced or force:
             with self.path.open('w') as file:
                 dump(self, file, indent=2)
+                file.write(linesep)
 
             self.synced = True
 
@@ -111,7 +124,7 @@ class WireGuardClient(NamedTuple):
     gateway: str
 
     @classmethod
-    def from_netdev(cls, netdev):
+    def from_netdev(cls, netdev: ConfigParser) -> WireGuardClient:
         """Creates a config tuple from the respective netdev data."""
         if netdev['NetDev']['Kind'] != 'wireguard':
             raise NotAWireGuardDevice()
@@ -136,7 +149,7 @@ class WireGuardClient(NamedTuple):
         return cls(interface, pubkey, endpoint, gateway)
 
     @classmethod
-    def all(cls):
+    def all(cls) -> Generator[WireGuardClient, None, None]:
         """Yields all available configurations."""
         for path in SYSTEMD_NETWORK.glob('*.netdev'):
             netdev = ConfigParser(strict=False)
@@ -146,17 +159,17 @@ class WireGuardClient(NamedTuple):
                 yield cls.from_netdev(netdev)
 
     @property
-    def hostname(self):
+    def hostname(self) -> str:
         """Returns the hostname."""
         return self.endpoint.split(':', maxsplit=1)[0]
 
     @property
-    def current_ip(self):
+    def current_ip(self) -> str:
         """Returns the host's current IP address."""
         return gethostbyname(self.hostname)
 
     @property
-    def gateway_unreachable(self):
+    def gateway_unreachable(self) -> bool:
         """Pings the gateway to check if it is (un)reachable."""
         if self.gateway is None:
             LOGGER.error('No gateway specified, cannot ping.')
@@ -174,12 +187,12 @@ class WireGuardClient(NamedTuple):
         return False
 
     @property
-    def reset_command(self):
+    def reset_command(self) -> tuple:
         """Returns the command tuple to reset the WireGuard interface."""
         return (WG, 'set', self.interface, 'peer', self.pubkey, 'endpoint',
                 self.endpoint)
 
-    def ip_changed(self, cache):
+    def ip_changed(self, cache: Cache) -> bool:
         """Determines whether the IP address
         of the specified host has changed.
         """
@@ -197,7 +210,7 @@ class WireGuardClient(NamedTuple):
         LOGGER.info('Host "%s": %s → %s', self.hostname, cached_ip, current_ip)
         return True
 
-    def reset(self):
+    def reset(self) -> bool:
         """Resets the interface."""
         try:
             check_call(self.reset_command)
@@ -209,11 +222,7 @@ class WireGuardClient(NamedTuple):
         LOGGER.info('Interface reset.')
         return True
 
-    def check(self, cache):
+    def check(self, cache) -> None:
         """Checks, whether the WireGuard connection is still intact."""
         if self.ip_changed(cache) or self.gateway_unreachable:
             self.reset()
-
-
-if __name__ == '__main__':
-    main()
