@@ -60,6 +60,9 @@ def get_args() -> Namespace:
     parser = ArgumentParser(description='WireGuard DynDNS watchdog.')
     parser.add_argument(
         '-d', '--debug', action='store_true', help='enable debug logging')
+    parser.add_argument(
+        '-c', '--check-gateway', action='store_true',
+        help='also check whether gateway is reachable')
     return parser.parse_args()
 
 
@@ -72,7 +75,7 @@ def main():
     with Cache(CACHE) as cache:
         for wire_guard_client in WireGuardClient.all():
             LOGGER.info('Checking: %s.', wire_guard_client.interface)
-            wire_guard_client.check(cache)
+            wire_guard_client.check(cache, check_gateway=args.check_gateway)
 
 
 class Cache(dict):
