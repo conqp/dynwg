@@ -11,6 +11,9 @@ setup(
     python_requires='>=3.8',
     py_modules=['dynwg'],
     scripts=['dynwg'],
+    data_files=[
+        ('/usr/lib/systemd/system', ['dynwg.service', 'dynwg.timer'])
+    ],
     url='https://github.com/conqp/dynwg',
     license='GPLv3',
     description=(
