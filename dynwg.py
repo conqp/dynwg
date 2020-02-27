@@ -224,9 +224,12 @@ class WireGuardClient(NamedTuple):
         LOGGER.info('Interface reset.')
         return True
 
-    def check(self, cache: Cache, check_gateway: bool = False) -> None:
+    def check(self, cache: Cache, check_gateway: bool = False) -> bool:
         """Checks, whether the WireGuard connection is still intact."""
         if cache.ip_changed(self.hostname):
-            self.reset()
-        elif check_gateway and self.gateway_unreachable:
-            self.reset()
+            return self.reset()
+
+        if check_gateway and self.gateway_unreachable:
+            return self.reset()
+
+        return True
