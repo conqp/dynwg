@@ -4,8 +4,7 @@ from setuptools import setup
 
 setup(
     name='dynwg',
-    version_format='{tag}',
-    setup_requires=['setuptools-git-version'],
+    version='1.1.1',
     author='Richard Neumann',
     author_email='mail@richard-neumann.de',
     python_requires='>=3.8',
