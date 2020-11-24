@@ -58,10 +58,10 @@ def get_args() -> Namespace:
 
     parser = ArgumentParser(description='WireGuard DynDNS watchdog.')
     parser.add_argument(
-        '-d', '--debug', action='store_true', help='enable debug logging')
-    parser.add_argument(
         '-c', '--check-gateway', action='store_true',
         help='also check whether gateway is reachable')
+    parser.add_argument(
+        '-d', '--debug', action='store_true', help='enable debug logging')
     return parser.parse_args()
 
 
