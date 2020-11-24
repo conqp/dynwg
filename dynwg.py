@@ -50,13 +50,10 @@ def get_networks(interface: str) -> Generator[ConfigParser, None, None]:
             continue
 
         try:
-            name = network['Match']['Name']
+            if network['Match']['Name'] == interface:
+                yield network
         except KeyError:
             LOGGER.warning('Network has no Name: %s', path)
-            continue
-
-        if name == interface:
-            yield network
 
 
 def get_args() -> Namespace:
