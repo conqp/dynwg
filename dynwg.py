@@ -3,7 +3,6 @@
 from __future__ import annotations
 from argparse import ArgumentParser, Namespace
 from configparser import ConfigParser
-from contextlib import suppress
 from json import dump, load
 from logging import DEBUG, INFO, basicConfig, getLogger
 from os import linesep
@@ -84,7 +83,7 @@ class Cache(dict):
     def __new__(cls, _):
         return super().__new__(cls)
 
-    def __init__(self, path):
+    def __init__(self, path: Path):
         super().__init__()
         self.path = path
         self.synced = True
@@ -122,7 +121,7 @@ class Cache(dict):
         LOGGER.info('Host "%s": %s → %s', hostname, cached_ip, current_ip)
         return True
 
-    def load(self) -> None:
+    def load(self):
         """Loads the cache."""
         try:
             with self.path.open('r') as file:
@@ -130,7 +129,7 @@ class Cache(dict):
         except FileNotFoundError:
             self.synced = False  # Ensure initial file creation.
 
-    def dump(self, force=False) -> None:
+    def dump(self, force: bool = False):
         """Dumps the cache."""
         if not self.synced or force:
             with self.path.open('w') as file:
@@ -158,7 +157,7 @@ class WireGuardClient(NamedTuple):
             endpoint = netdev['WireGuardPeer']['Endpoint']
             pubkey = netdev['WireGuardPeer']['PublicKey']
         except KeyError:
-            raise NotAWireGuardClient()
+            raise NotAWireGuardClient() from None
 
         interface = netdev['NetDev']['Name']
         gateway = None
@@ -180,8 +179,14 @@ class WireGuardClient(NamedTuple):
             netdev = ConfigParser(strict=False)
             netdev.read(path)
 
-            with suppress(NotAWireGuardDevice, NotAWireGuardClient, KeyError):
+            try:
                 yield cls.from_netdev(netdev)
+            except KeyError:
+                LOGGER.warning('Invalid netdev: %s', path)
+            except NotAWireGuardDevice:
+                LOGGER.debug('Not a WireGuard device: %s', path)
+            except NotAWireGuardClient:
+                LOGGER.debug('Not a WireGuard client: %s', path)
 
     @property
     def hostname(self) -> str:
