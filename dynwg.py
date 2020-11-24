@@ -44,13 +44,19 @@ def get_networks(interface: str) -> Generator[ConfigParser, None, None]:
 
     for path in SYSTEMD_NETWORK.glob('*.network'):
         network = ConfigParser(strict=False)
-        network.read(path)
+
+        if not network.read(path):
+            LOGGER.warning('Could not read *.network file: %s', path)
+            continue
 
         try:
-            if network['Match']['Name'] == interface:
-                yield network
+            name = network['Match']['Name']
         except KeyError:
+            LOGGER.warning('Network has no Name: %s', path)
             continue
+
+        if name == interface:
+            yield network
 
 
 def get_args() -> Namespace:
@@ -179,13 +185,13 @@ class WireGuardClient(NamedTuple):
             netdev = ConfigParser(strict=False)
 
             if not netdev.read(path):
-                LOGGER.warning('Could not read netdev: %s', path)
+                LOGGER.warning('Could not read *.netdev file: %s', path)
                 continue
 
             try:
                 yield cls.from_netdev(netdev)
             except KeyError:
-                LOGGER.warning('Invalid netdev: %s', path)
+                LOGGER.warning('Invalid netdev configuration: %s', path)
             except NotAWireGuardDevice:
                 LOGGER.debug('Not a WireGuard device: %s', path)
             except NotAWireGuardClient:
