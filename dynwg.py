@@ -177,7 +177,10 @@ class WireGuardClient(NamedTuple):
         """Yields all available configurations."""
         for path in SYSTEMD_NETWORK.glob('*.netdev'):
             netdev = ConfigParser(strict=False)
-            netdev.read(path)
+
+            if not netdev.read(path):
+                LOGGER.warning('Could not read netdev: %s', path)
+                continue
 
             try:
                 yield cls.from_netdev(netdev)
