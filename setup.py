@@ -5,13 +5,13 @@ from setuptools import setup
 
 setup(
     name='dynwg',
-    version_format='{tag}',
-    setup_requires=['setuptools-git-version'],
+    use_scm_version=True,
+    setup_requires=['setuptools_scm'],
     author='Richard Neumann',
     author_email='mail@richard-neumann.de',
     python_requires='>=3.8',
     py_modules=['dynwg'],
-    scripts=['dynwg'],
+    entry_points={'console_scripts': ['dynwg = dynwg:main']},
     data_files=[
         ('/usr/lib/systemd/system', ['dynwg.service', 'dynwg.timer'])
     ],
