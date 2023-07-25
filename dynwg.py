@@ -13,22 +13,22 @@ from typing import Generator, NamedTuple
 
 
 __all__ = [
-    'CACHE',
-    'NotAWireGuardDevice',
-    'NotAWireGuardClient',
-    'get_networks',
-    'main',
-    'Cache',
-    'WireGuardClient'
+    "CACHE",
+    "NotAWireGuardDevice",
+    "NotAWireGuardClient",
+    "get_networks",
+    "main",
+    "Cache",
+    "WireGuardClient",
 ]
 
 
-CACHE = Path('/var/cache/dynwg.json')
-SYSTEMD_NETWORK = Path('/etc/systemd/network')
-PING = '/usr/bin/ping'
-WG = '/usr/bin/wg'
+CACHE = Path("/var/cache/dynwg.json")
+SYSTEMD_NETWORK = Path("/etc/systemd/network")
+PING = "/usr/bin/ping"
+WG = "/usr/bin/wg"
 LOGGER = getLogger(__file__)
-LOG_FORMAT = '[%(levelname)s] %(name)s: %(message)s'
+LOG_FORMAT = "[%(levelname)s] %(name)s: %(message)s"
 
 
 class NotAWireGuardDevice(Exception):
@@ -42,29 +42,33 @@ class NotAWireGuardClient(Exception):
 def get_networks(interface: str) -> Generator[ConfigParser, None, None]:
     """Returns the network configuration for the respective interface."""
 
-    for path in SYSTEMD_NETWORK.glob('*.network'):
+    for path in SYSTEMD_NETWORK.glob("*.network"):
         network = ConfigParser(strict=False)
 
         if not network.read(path):
-            LOGGER.warning('Could not read *.network file: %s', path)
+            LOGGER.warning("Could not read *.network file: %s", path)
             continue
 
         try:
-            if network['Match']['Name'] == interface:
+            if network["Match"]["Name"] == interface:
                 yield network
         except KeyError:
-            LOGGER.warning('Network has no Name: %s', path)
+            LOGGER.warning("Network has no Name: %s", path)
 
 
 def get_args() -> Namespace:
     """Returns the command line arguments."""
 
-    parser = ArgumentParser(description='WireGuard DynDNS watchdog.')
+    parser = ArgumentParser(description="WireGuard DynDNS watchdog.")
     parser.add_argument(
-        '-c', '--check-gateway', action='store_true',
-        help='also check whether gateway is reachable')
+        "-c",
+        "--check-gateway",
+        action="store_true",
+        help="also check whether gateway is reachable",
+    )
     parser.add_argument(
-        '-d', '--debug', action='store_true', help='enable debug logging')
+        "-d", "--debug", action="store_true", help="enable debug logging"
+    )
     return parser.parse_args()
 
 
@@ -76,7 +80,7 @@ def main():
 
     with Cache(CACHE) as cache:
         for wire_guard_client in WireGuardClient.all():
-            LOGGER.info('Checking: %s.', wire_guard_client.interface)
+            LOGGER.info("Checking: %s.", wire_guard_client.interface)
             wire_guard_client.check(cache, check_gateway=args.check_gateway)
 
 
@@ -127,7 +131,7 @@ class Cache(dict):
     def load(self):
         """Loads the cache."""
         try:
-            with self.path.open('r') as file:
+            with self.path.open("r") as file:
                 self.update(load(file))
         except FileNotFoundError:
             self.synced = False  # Ensure initial file creation.
@@ -135,7 +139,7 @@ class Cache(dict):
     def dump(self, force: bool = False):
         """Dumps the cache."""
         if not self.synced or force:
-            with self.path.open('w') as file:
+            with self.path.open("w") as file:
                 dump(self, file, indent=2)
                 file.write(linesep)
 
@@ -153,61 +157,61 @@ class WireGuardClient(NamedTuple):
     @classmethod
     def from_netdev(cls, netdev: ConfigParser) -> WireGuardClient:
         """Creates a config tuple from the respective netdev data."""
-        if netdev['NetDev']['Kind'] != 'wireguard':
+        if netdev["NetDev"]["Kind"] != "wireguard":
             raise NotAWireGuardDevice()
 
         try:
-            endpoint = netdev['WireGuardPeer']['Endpoint']
-            pubkey = netdev['WireGuardPeer']['PublicKey']
+            endpoint = netdev["WireGuardPeer"]["Endpoint"]
+            pubkey = netdev["WireGuardPeer"]["PublicKey"]
         except KeyError:
             raise NotAWireGuardClient() from None
 
-        interface = netdev['NetDev']['Name']
+        interface = netdev["NetDev"]["Name"]
         gateway = None
 
         for network in get_networks(interface):
             try:
-                gateway = network['Route']['Gateway']
+                gateway = network["Route"]["Gateway"]
             except KeyError:
                 continue
 
-            break   # Use first available gateway.
+            break  # Use first available gateway.
 
         return cls(interface, pubkey, endpoint, gateway)
 
     @classmethod
     def all(cls) -> Generator[WireGuardClient, None, None]:
         """Yields all available configurations."""
-        for path in SYSTEMD_NETWORK.glob('*.netdev'):
+        for path in SYSTEMD_NETWORK.glob("*.netdev"):
             netdev = ConfigParser(strict=False)
 
             if not netdev.read(path):
-                LOGGER.warning('Could not read *.netdev file: %s', path)
+                LOGGER.warning("Could not read *.netdev file: %s", path)
                 continue
 
             try:
                 yield cls.from_netdev(netdev)
             except KeyError:
-                LOGGER.warning('Invalid netdev configuration: %s', path)
+                LOGGER.warning("Invalid netdev configuration: %s", path)
             except NotAWireGuardDevice:
-                LOGGER.debug('Not a WireGuard device: %s', path)
+                LOGGER.debug("Not a WireGuard device: %s", path)
             except NotAWireGuardClient:
-                LOGGER.debug('Not a WireGuard client: %s', path)
+                LOGGER.debug("Not a WireGuard client: %s", path)
 
     @property
     def hostname(self) -> str:
         """Returns the hostname."""
-        return self.endpoint.split(':', maxsplit=1)[0]
+        return self.endpoint.split(":", maxsplit=1)[0]
 
     @property
     def gateway_unreachable(self) -> bool:
         """Pings the gateway to check if it is (un)reachable."""
         if self.gateway is None:
-            LOGGER.error('No gateway specified, cannot ping.')
-            LOGGER.info('Assuming not reachable.')
+            LOGGER.error("No gateway specified, cannot ping.")
+            LOGGER.info("Assuming not reachable.")
             return True
 
-        command = (PING, '-c', '3', '-W', '3', self.gateway)
+        command = (PING, "-c", "3", "-W", "3", self.gateway)
 
         try:
             check_call(command, stdout=DEVNULL, stderr=DEVNULL)
@@ -220,19 +224,26 @@ class WireGuardClient(NamedTuple):
     @property
     def reset_command(self) -> tuple:
         """Returns the command tuple to reset the WireGuard interface."""
-        return (WG, 'set', self.interface, 'peer', self.pubkey, 'endpoint',
-                self.endpoint)
+        return (
+            WG,
+            "set",
+            self.interface,
+            "peer",
+            self.pubkey,
+            "endpoint",
+            self.endpoint,
+        )
 
     def reset(self) -> bool:
         """Resets the interface."""
         try:
             check_call(self.reset_command)
         except CalledProcessError as cpe:
-            LOGGER.error('Resetting of interface failed.')
+            LOGGER.error("Resetting of interface failed.")
             LOGGER.debug(cpe)
             return False
 
-        LOGGER.info('Interface reset.')
+        LOGGER.info("Interface reset.")
         return True
 
     def check(self, cache: Cache, check_gateway: bool = False) -> bool:
