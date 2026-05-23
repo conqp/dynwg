@@ -170,7 +170,6 @@ class WireGuardClient(NamedTuple):
             raise NotAWireGuardClient() from None
 
         interface = netdev["NetDev"]["Name"]
-        gateway = None
 
         for network in get_networks(interface):
             try:
