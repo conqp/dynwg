@@ -11,7 +11,6 @@ from socket import gaierror, gethostbyname
 from subprocess import DEVNULL, CalledProcessError, check_call
 from typing import Generator, NamedTuple
 
-
 __all__ = [
     "CACHE",
     "NotAWireGuardDevice",
