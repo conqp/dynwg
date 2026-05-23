@@ -39,6 +39,10 @@ class NotAWireGuardClient(Exception):
     """Indicates that the device is not a WireGuard client configuration."""
 
 
+class NoGatewayFound(Exception):
+    """Indicates that no gateway was configured."""
+
+
 def get_networks(interface: str) -> Generator[ConfigParser, None, None]:
     """Returns the network configuration for the respective interface."""
 
@@ -175,9 +179,10 @@ class WireGuardClient(NamedTuple):
             except KeyError:
                 continue
 
-            break  # Use first available gateway.
+            # Use first available gateway.
+            return cls(interface, pubkey, endpoint, gateway)
 
-        return cls(interface, pubkey, endpoint, gateway)
+        raise NoGatewayFound()
 
     @classmethod
     def all(cls) -> Generator[WireGuardClient, None, None]:
@@ -197,6 +202,8 @@ class WireGuardClient(NamedTuple):
                 LOGGER.debug("Not a WireGuard device: %s", path)
             except NotAWireGuardClient:
                 LOGGER.debug("Not a WireGuard client: %s", path)
+            except NoGatewayFound:
+                LOGGER.warning("No gateway configured: %s", path)
 
     @property
     def hostname(self) -> str:
